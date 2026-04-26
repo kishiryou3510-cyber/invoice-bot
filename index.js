@@ -134,7 +134,22 @@ function generateInvoiceHTML(data) {
 
 async function generatePDF(data) {
   const PDFDocument = require('pdfkit');
+  const https = require('https');
+  const fs = require('fs');
+  const path = require('path');
   const chunks = [];
+
+  // 日本語フォントをダウンロード
+  const fontPath = '/tmp/NotoSansJP.ttf';
+  if (!fs.existsSync(fontPath)) {
+    await new Promise((resolve, reject) => {
+      const file = fs.createWriteStream(fontPath);
+      https.get('https://github.com/google/fonts/raw/main/ofl/notosansjp/NotoSansJP%5Bwght%5D.ttf', res => {
+        res.pipe(file);
+        file.on('finish', () => { file.close(); resolve(); });
+      }).on('error', reject);
+    });
+  }
 
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({ size: 'A4', margin: 40 });
@@ -143,7 +158,7 @@ async function generatePDF(data) {
     doc.on('end', () => resolve(Buffer.concat(chunks)));
     doc.on('error', reject);
 
-    const font = 'Helvetica';
+    const font = fontPath;
     const W = 515;
 
     // 右上：日付・請求番号
