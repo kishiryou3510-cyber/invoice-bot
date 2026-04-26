@@ -125,28 +125,35 @@ function generateInvoiceHTML(data) {
 </html>`;
 }
 
-async function generatePDF(html) {
-  let chromium, puppeteer;
+async function generatePDF(data) {
+  const { PDFDocument, rgb, StandardFonts } = require('pdf-lib');
+  
+  const pdfDoc = await PDFDocument.create();
+  const page = pdfDoc.addPage([595, 842]);
+  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  
+  const { height } = page.getSize();
+  let y = height - 50;
 
-  try {
-    chromium = require('@sparticuz/chromium');
-    puppeteer = require('puppeteer-core');
-  } catch (e) {
-    puppeteer = require('puppeteer');
+  const lines = [
+    'Invoice',
+    '',
+    `Client: ${data.clientName || ''}`,
+    `Date: ${data.date || ''}`,
+    '',
+    `Item: ${data.item || ''}`,
+    `Amount: ${data.amount || ''}`,
+    '',
+    `Total: ${data.total || ''}`,
+  ];
+
+  for (const line of lines) {
+    page.drawText(line, { x: 50, y, size: 14, font, color: rgb(0, 0, 0) });
+    y -= 25;
   }
 
-  const browser = await puppeteer.launch({
-    args: chromium ? chromium.args : [],
-    executablePath: chromium ? await chromium.executablePath() : undefined,
-    headless: true,
-  });
-
-  const page = await browser.newPage();
-  await page.setContent(html, { waitUntil: 'networkidle0' });
-  const pdfBuffer = await page.pdf({ format: 'A4' });
-  await browser.close();
-
-  return pdfBuffer;
+  const pdfBytes = await pdfDoc.save();
+  return Buffer.from(pdfBytes);
 }
 
 const PORT = process.env.PORT || 3000;
