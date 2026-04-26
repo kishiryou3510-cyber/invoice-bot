@@ -17,7 +17,7 @@ const client = new line.messagingApi.MessagingApiClient({
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-const FONT_PATH = path.join(__dirname, 'fonts', 'NotoSansCJK-Regular.ttc');
+const FONT_PATH = path.join(__dirname, 'fonts', 'NotoSansJP-Regular.otf');
 
 app.get('/', (req, res) => {
   res.send('サーバー起動中です！');
