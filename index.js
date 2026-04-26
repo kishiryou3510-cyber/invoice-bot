@@ -74,14 +74,12 @@ async function handleInvoice(event, userMessage) {
     const jsonText = response.content[0].text.replace(/```json|```/g, '').trim();
     const invoiceData = JSON.parse(jsonText);
 
-    // HTMLで請求書を作成
-    const html = generateInvoiceHTML(invoiceData);
 
     // PDFを生成
     const pdfBuffer = await generatePDF(html);
 
     // Google Driveにアップロード
-const fileName = `請求書_${invoiceData.clientName}_${Date.now()}.pdf`;
+const fileName = `請求書_${invoiceData.client_name}_${Date.now()}.pdf`;
 const driveUrl = await uploadToDrive(pdfBuffer, fileName);
 
 await client.replyMessage({
