@@ -2,6 +2,7 @@ require('dotenv/config');
 const express = require('express');
 const line = require('@line/bot-sdk');
 const Anthropic = require('@anthropic-ai/sdk');
+const path = require('path');
 
 const app = express();
 
@@ -15,6 +16,8 @@ const client = new line.messagingApi.MessagingApiClient({
 });
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+const FONT_PATH = path.join(__dirname, 'fonts', 'NotoSansCJK-Regular.ttc');
 
 app.get('/', (req, res) => {
   res.send('サーバー起動中です！');
@@ -44,7 +47,7 @@ async function handleEvent(event) {
 async function handleInvoice(event, userMessage) {
   try {
     const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-6',
       max_tokens: 1024,
       messages: [{
         role: 'user',
@@ -74,21 +77,18 @@ async function handleInvoice(event, userMessage) {
     const jsonText = response.content[0].text.replace(/```json|```/g, '').trim();
     const invoiceData = JSON.parse(jsonText);
 
-
-    // PDFを生成
     const pdfBuffer = await generatePDF(invoiceData);
 
-    // Google Driveにアップロード
-const fileName = `請求書_${invoiceData.client_name}_${Date.now()}.pdf`;
-const driveUrl = await uploadToDrive(pdfBuffer, fileName);
+    const fileName = `請求書_${invoiceData.client_name}_${Date.now()}.pdf`;
+    const driveUrl = await uploadToDrive(pdfBuffer, fileName);
 
-await client.replyMessage({
-  replyToken: event.replyToken,
-  messages: [{
-    type: 'text',
-    text: `✅ ${invoiceData.type}を作成しました！\n\n📋 宛先：${invoiceData.client_name}\n💰 金額：¥${parseInt(invoiceData.amount).toLocaleString()}\n📝 内容：${invoiceData.description}\n📅 日付：${invoiceData.date}\n\n📄 PDFはこちら：\n${driveUrl}`
-  }]
-});
+    await client.replyMessage({
+      replyToken: event.replyToken,
+      messages: [{
+        type: 'text',
+        text: `✅ ${invoiceData.type}を作成しました！\n\n📋 宛先：${invoiceData.client_name}\n💰 金額：¥${parseInt(invoiceData.amount).toLocaleString()}\n📝 内容：${invoiceData.description}\n📅 日付：${invoiceData.date}\n\n📄 PDFはこちら：\n${driveUrl}`
+      }]
+    });
 
   } catch (error) {
     console.error(error);
@@ -99,71 +99,9 @@ await client.replyMessage({
   }
 }
 
-function generateInvoiceHTML(data) {
-  return `
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-<meta charset="UTF-8">
-<style>
-  body { font-family: 'Noto Sans JP', sans-serif; padding: 40px; color: #333; }
-  h1 { text-align: center; font-size: 28px; margin-bottom: 30px; }
-  .info { margin-bottom: 20px; }
-  .info table { width: 100%; border-collapse: collapse; }
-  .info td { padding: 10px; border: 1px solid #ddd; }
-  .amount { font-size: 24px; font-weight: bold; text-align: right; margin: 20px 0; }
-  .footer { margin-top: 40px; text-align: right; }
-</style>
-</head>
-<body>
-  <h1>${data.type}</h1>
-  <div class="info">
-    <table>
-      <tr><td>宛先</td><td>${data.client_name} 御中</td></tr>
-      <tr><td>日付</td><td>${data.date}</td></tr>
-      <tr><td>内容</td><td>${data.description}</td></tr>
-    </table>
-  </div>
-  <div class="amount">金額：¥${data.amount.toLocaleString()}-（税込）</div>
-  <div class="footer">
-    <p>発行者：バックオフィス テストbot</p>
-  </div>
-</body>
-</html>`;
-}
-
 async function generatePDF(data) {
   const PDFDocument = require('pdfkit');
-  const https = require('https');
-  const fs = require('fs');
-  const path = require('path');
   const chunks = [];
-
-  // 日本語フォントをダウンロード
-  const fontPath = '/tmp/NotoSansJP.otf';
- async function downloadFont(fontPath) {
-    const url = 'https://raw.githubusercontent.com/notofonts/noto-cjk/main/Sans/SubsetOTF/JP/NotoSansCJKjp-Regular.otf';
-    await new Promise((resolve, reject) => {
-      const file = fs.createWriteStream(fontPath);
-      const request = (u) => {
-        https.get(u, res => {
-          if (res.statusCode === 301 || res.statusCode === 302) {
-            request(res.headers.location);
-          } else if (res.statusCode === 200) {
-            res.pipe(file);
-            file.on('finish', () => { file.close(); resolve(); });
-          } else {
-            reject(new Error(`フォント取得失敗: ${res.statusCode}`));
-          }
-        }).on('error', reject);
-      };
-      request(url);
-    });
-  }
-
-  if (!fs.existsSync(fontPath)) {
-    await downloadFont(fontPath);
-  }
 
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({ size: 'A4', margin: 40 });
@@ -172,7 +110,7 @@ async function generatePDF(data) {
     doc.on('end', () => resolve(Buffer.concat(chunks)));
     doc.on('error', reject);
 
-    const font = fontPath;
+    const font = FONT_PATH;
     const W = 515;
 
     // 右上：日付・請求番号
@@ -266,6 +204,7 @@ async function generatePDF(data) {
     doc.end();
   });
 }
+
 async function uploadToDrive(pdfBuffer, fileName) {
   const { google } = require('googleapis');
 
@@ -301,7 +240,7 @@ async function uploadToDrive(pdfBuffer, fileName) {
   return `https://drive.google.com/file/d/${fileId}/view`;
 }
 
- const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`サーバー起動中: ポート${PORT}`);
 });
