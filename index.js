@@ -72,16 +72,17 @@ async function handleInvoice(event, userMessage) {
     // PDFを生成
     const pdfBuffer = await generatePDF(html);
 
-    // Base64に変換してLINEに送信
-    const base64PDF = pdfBuffer.toString('base64');
+    // Google Driveにアップロード
+const fileName = `請求書_${invoiceData.clientName}_${Date.now()}.pdf`;
+const driveUrl = await uploadToDrive(pdfBuffer, fileName);
 
-    await client.replyMessage({
-      replyToken: event.replyToken,
-      messages: [{
-        type: 'text',
-        text: `✅ ${invoiceData.type}を作成しました！\n\n📋 宛先：${invoiceData.client_name}\n💰 金額：¥${invoiceData.amount.toLocaleString()}\n📝 内容：${invoiceData.description}\n📅 日付：${invoiceData.date}\n\n📄 PDFを生成しました！`
-      }]
-    });
+await client.replyMessage({
+  replyToken: event.replyToken,
+  messages: [{
+    type: 'text',
+    text: `✅ ${invoiceData.type}を作成しました！\n\n📋 宛先：${invoiceData.clientName}\n💰 金額：¥${invoiceData.amount}\n📝 内容：${invoiceData.item}\n📅 日付：${invoiceData.date}\n\n📄 PDFはこちら：\n${driveUrl}`
+  }]
+});
 
   } catch (error) {
     console.error(error);
@@ -155,7 +156,37 @@ async function generatePDF(data) {
   const pdfBytes = await pdfDoc.save();
   return Buffer.from(pdfBytes);
 }
+async function uploadToDrive(pdfBuffer, fileName) {
+  const { google } = require('googleapis');
+  
+  const credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
+  const auth = new google.auth.GoogleAuth({
+    credentials,
+    scopes: ['https://www.googleapis.com/auth/drive'],
+  });
 
+  const drive = google.drive({ version: 'v3', auth });
+
+  const response = await drive.files.create({
+    requestBody: {
+      name: fileName,
+      mimeType: 'application/pdf',
+      parents: ['1CgGvx2-wr3DQp6Tbv-PRmJwUwtVPGBmB'],
+    },
+    media: {
+      mimeType: 'application/pdf',
+      body: require('stream').Readable.from(pdfBuffer),
+    },
+  });
+
+  const fileId = response.data.id;
+  await drive.permissions.create({
+    fileId,
+    requestBody: { role: 'reader', type: 'anyone' },
+  });
+
+  return `https://drive.google.com/file/d/${fileId}/view`;
+}
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`サーバー起動中: ポート${PORT}`);
