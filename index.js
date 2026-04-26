@@ -141,14 +141,28 @@ async function generatePDF(data) {
 
   // 日本語フォントをダウンロード
   const fontPath = '/tmp/NotoSansJP.otf';
-  if (!fs.existsSync(fontPath)) {
+ async function downloadFont(fontPath) {
+    const url = 'https://raw.githubusercontent.com/notofonts/noto-cjk/main/Sans/SubsetOTF/JP/NotoSansCJKjp-Regular.otf';
     await new Promise((resolve, reject) => {
       const file = fs.createWriteStream(fontPath);
-      https.get('https://github.com/notofonts/noto-cjk/raw/main/Sans/SubsetOTF/JP/NotoSansCJKjp-Regular.otf', res => {
-        res.pipe(file);
-        file.on('finish', () => { file.close(); resolve(); });
-      }).on('error', reject);
+      const request = (u) => {
+        https.get(u, res => {
+          if (res.statusCode === 301 || res.statusCode === 302) {
+            request(res.headers.location);
+          } else if (res.statusCode === 200) {
+            res.pipe(file);
+            file.on('finish', () => { file.close(); resolve(); });
+          } else {
+            reject(new Error(`フォント取得失敗: ${res.statusCode}`));
+          }
+        }).on('error', reject);
+      };
+      request(url);
     });
+  }
+
+  if (!fs.existsSync(fontPath)) {
+    await downloadFont(fontPath);
   }
 
   return new Promise((resolve, reject) => {
