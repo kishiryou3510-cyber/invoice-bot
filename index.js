@@ -140,11 +140,11 @@ async function generatePDF(data) {
   const chunks = [];
 
   // 日本語フォントをダウンロード
-  const fontPath = '/tmp/NotoSansJP.ttf';
+  const fontPath = '/tmp/NotoSansJP.otf';
   if (!fs.existsSync(fontPath)) {
     await new Promise((resolve, reject) => {
       const file = fs.createWriteStream(fontPath);
-      https.get('https://github.com/google/fonts/raw/main/ofl/notosansjp/NotoSansJP%5Bwght%5D.ttf', res => {
+      https.get('https://github.com/notofonts/noto-cjk/raw/main/Sans/SubsetOTF/JP/NotoSansCJKjp-Regular.otf', res => {
         res.pipe(file);
         file.on('finish', () => { file.close(); resolve(); });
       }).on('error', reject);
