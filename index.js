@@ -69,8 +69,8 @@ async function handleInvoice(event, userMessage) {
   "description": "件名・内容",
   "unit_price": 単価(数字のみ),
   "quantity": 数量(数字のみ),
-  "date": "今日の日付(YYYY年MM月DD日形式)",
-  "invoice_no": "請求番号(YYYYMMDD-001形式)",
+  "date": "",
+  "invoice_no": "",
   "issuer_name": "",
   "issuer_zip": "",
   "issuer_address": "",
@@ -83,6 +83,15 @@ async function handleInvoice(event, userMessage) {
 
     const jsonText = response.content[0].text.replace(/```json|```/g, '').trim();
     const invoiceData = JSON.parse(jsonText);
+
+    // 発行日をサーバー時刻で上書き
+    const now = new Date();
+    const jst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+    const y = jst.getUTCFullYear();
+    const m = String(jst.getUTCMonth() + 1).padStart(2, '0');
+    const d = String(jst.getUTCDate()).padStart(2, '0');
+    invoiceData.date = `${y}年${m}月${d}日`;
+    invoiceData.invoice_no = `${y}${m}${d}-001`;
 
     // 金額計算
     const unitPrice = parseInt(invoiceData.unit_price) || 0;
