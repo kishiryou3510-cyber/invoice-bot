@@ -177,7 +177,9 @@ async function uploadToDrive(pdfBuffer, fileName) {
       mimeType: 'application/pdf',
       body: require('stream').Readable.from(pdfBuffer),
     },
-  });
+    supportsAllDrives: true,
+  fields: 'id',
+});
 
   const fileId = response.data.id;
   await drive.permissions.create({
