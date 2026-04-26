@@ -158,12 +158,38 @@ async function generatePDF(data) {
 }
 async function uploadToDrive(pdfBuffer, fileName) {
   const { google } = require('googleapis');
-  
-  const credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
-  const auth = new google.auth.GoogleAuth({
-    credentials,
-    scopes: ['https://www.googleapis.com/auth/drive'],
+
+  const auth = new google.auth.OAuth2(
+    process.env.GOOGLE_CLIENT_ID,
+    process.env.GOOGLE_CLIENT_SECRET
+  );
+
+  auth.setCredentials({
+    refresh_token: process.env.GOOGLE_REFRESH_TOKEN
   });
+
+  const drive = google.drive({ version: 'v3', auth });
+
+  const response = await drive.files.create({
+    requestBody: {
+      name: fileName,
+      mimeType: 'application/pdf',
+    },
+    media: {
+      mimeType: 'application/pdf',
+      body: require('stream').Readable.from(pdfBuffer),
+    },
+    fields: 'id',
+  });
+
+  const fileId = response.data.id;
+  await drive.permissions.create({
+    fileId,
+    requestBody: { role: 'reader', type: 'anyone' },
+  });
+
+  return `https://drive.google.com/file/d/${fileId}/view`;
+}
 
   const drive = google.drive({ version: 'v3', auth });
 
