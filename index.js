@@ -31,20 +31,18 @@ async function handleEvent(event) {
 
   const userMessage = event.message.text;
 
-  // 請求書コマンドの判定
   if (userMessage.includes('請求書') || userMessage.includes('領収書')) {
     await handleInvoice(event, userMessage);
   } else {
     await client.replyMessage({
       replyToken: event.replyToken,
-      messages: [{ type: 'text', text: `「請求書」または「領収書」と入力すると請求書を作成します！\n\n例：請求書 株式会社〇〇 50000円 コンサルティング料` }]
+      messages: [{ type: 'text', text: `「請求書」または「領収書」と入力すると作成します！\n\n例：請求書 株式会社〇〇 50000円 コンサルティング料` }]
     });
   }
 }
 
 async function handleInvoice(event, userMessage) {
   try {
-    // Claudeで内容を解析
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 1024,
@@ -68,24 +66,87 @@ async function handleInvoice(event, userMessage) {
     const jsonText = response.content[0].text.replace(/```json|```/g, '').trim();
     const invoiceData = JSON.parse(jsonText);
 
-    const replyText = `✅ ${invoiceData.type}を作成しました！\n\n` +
-      `📋 宛先：${invoiceData.client_name}\n` +
-      `💰 金額：¥${invoiceData.amount.toLocaleString()}\n` +
-      `📝 内容：${invoiceData.description}\n` +
-      `📅 日付：${invoiceData.date}\n\n` +
-      `※PDF生成機能は次のステップで追加します！`;
+    // HTMLで請求書を作成
+    const html = generateInvoiceHTML(invoiceData);
+
+    // PDFを生成
+    const pdfBuffer = await generatePDF(html);
+
+    // Base64に変換してLINEに送信
+    const base64PDF = pdfBuffer.toString('base64');
 
     await client.replyMessage({
       replyToken: event.replyToken,
-      messages: [{ type: 'text', text: replyText }]
+      messages: [{
+        type: 'text',
+        text: `✅ ${invoiceData.type}を作成しました！\n\n📋 宛先：${invoiceData.client_name}\n💰 金額：¥${invoiceData.amount.toLocaleString()}\n📝 内容：${invoiceData.description}\n📅 日付：${invoiceData.date}\n\n📄 PDFを生成しました！`
+      }]
     });
 
   } catch (error) {
+    console.error(error);
     await client.replyMessage({
       replyToken: event.replyToken,
       messages: [{ type: 'text', text: 'エラーが発生しました。もう一度お試しください。' }]
     });
   }
+}
+
+function generateInvoiceHTML(data) {
+  return `
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<style>
+  body { font-family: 'Noto Sans JP', sans-serif; padding: 40px; color: #333; }
+  h1 { text-align: center; font-size: 28px; margin-bottom: 30px; }
+  .info { margin-bottom: 20px; }
+  .info table { width: 100%; border-collapse: collapse; }
+  .info td { padding: 10px; border: 1px solid #ddd; }
+  .amount { font-size: 24px; font-weight: bold; text-align: right; margin: 20px 0; }
+  .footer { margin-top: 40px; text-align: right; }
+</style>
+</head>
+<body>
+  <h1>${data.type}</h1>
+  <div class="info">
+    <table>
+      <tr><td>宛先</td><td>${data.client_name} 御中</td></tr>
+      <tr><td>日付</td><td>${data.date}</td></tr>
+      <tr><td>内容</td><td>${data.description}</td></tr>
+    </table>
+  </div>
+  <div class="amount">金額：¥${data.amount.toLocaleString()}-（税込）</div>
+  <div class="footer">
+    <p>発行者：バックオフィス テストbot</p>
+  </div>
+</body>
+</html>`;
+}
+
+async function generatePDF(html) {
+  let chromium, puppeteer;
+
+  try {
+    chromium = require('@sparticuz/chromium');
+    puppeteer = require('puppeteer-core');
+  } catch (e) {
+    puppeteer = require('puppeteer');
+  }
+
+  const browser = await puppeteer.launch({
+    args: chromium ? chromium.args : [],
+    executablePath: chromium ? await chromium.executablePath() : undefined,
+    headless: true,
+  });
+
+  const page = await browser.newPage();
+  await page.setContent(html, { waitUntil: 'networkidle0' });
+  const pdfBuffer = await page.pdf({ format: 'A4' });
+  await browser.close();
+
+  return pdfBuffer;
 }
 
 const PORT = process.env.PORT || 3000;
