@@ -60,8 +60,8 @@ async function handleInvoice(event, userMessage) {
   "type": "請求書" または "領収書",
   "client_name": "宛先会社名",
   "description": "件名・内容",
-  "amount": 金額(数字のみ),
-  "quantity": "数量(数字のみ)",
+  "unit_price": 単価(数字のみ。明示されていない場合は合計金額を数量で割った値),
+  "quantity": 数量(数字のみ。明示されていない場合は1),
   "date": "今日の日付(YYYY年MM月DD日形式)",
   "invoice_no": "請求番号(YYYYMMDD-001形式)",
   "issuer_name": "",
@@ -77,6 +77,16 @@ async function handleInvoice(event, userMessage) {
     const jsonText = response.content[0].text.replace(/```json|```/g, '').trim();
     const invoiceData = JSON.parse(jsonText);
 
+    // 金額計算
+    const unitPrice = parseInt(invoiceData.unit_price) || 0;
+    const quantity = parseInt(invoiceData.quantity) || 1;
+    const subtotal = unitPrice * quantity;
+    const tax = Math.round(subtotal * 10 / 110); // 内税10%
+    invoiceData._unitPrice = unitPrice;
+    invoiceData._quantity = quantity;
+    invoiceData._subtotal = subtotal;
+    invoiceData._tax = tax;
+
     const pdfBuffer = await generatePDF(invoiceData);
 
     const fileName = `請求書_${invoiceData.client_name}_${Date.now()}.pdf`;
@@ -86,7 +96,7 @@ async function handleInvoice(event, userMessage) {
       replyToken: event.replyToken,
       messages: [{
         type: 'text',
-        text: `✅ ${invoiceData.type}を作成しました！\n\n📋 宛先：${invoiceData.client_name}\n💰 金額：¥${parseInt(invoiceData.amount).toLocaleString()}\n📝 内容：${invoiceData.description}\n📅 日付：${invoiceData.date}\n\n📄 PDFはこちら：\n${driveUrl}`
+        text: `✅ ${invoiceData.type}を作成しました！\n\n📋 宛先：${invoiceData.client_name}\n💰 請求金額：¥${subtotal.toLocaleString()}（税込）\n📝 内容：${invoiceData.description}\n📅 日付：${invoiceData.date}\n\n📄 PDFはこちら：\n${driveUrl}`
       }]
     });
 
@@ -137,8 +147,11 @@ async function generatePDF(data) {
     // ご請求金額
     doc.fontSize(10).text('ご請求金額', 40, 200);
     doc.moveTo(40, 212).lineTo(280, 212).stroke();
-    const amount = parseInt(data.amount) || 0;
-    doc.fontSize(16).text(`¥ ${amount.toLocaleString()} -`, 150, 195);
+    const unitPrice = data._unitPrice || 0;
+    const quantity = data._quantity || 1;
+    const subtotal = data._subtotal || 0;
+    const tax = data._tax || 0;
+    doc.fontSize(16).text(`¥ ${subtotal.toLocaleString()} -`, 150, 195);
 
     // 発行者情報（右）
     doc.fontSize(10)
@@ -170,19 +183,16 @@ async function generatePDF(data) {
       doc.rect(colX[2], y, colW[2], 20).stroke('#ccc');
       doc.rect(colX[3], y, colW[3], 20).stroke('#ccc');
       if (i === 0) {
-        const qty = data.quantity || '1';
-        const unit = parseInt(data.amount) || 0;
         doc.fontSize(9).fillColor('black')
           .text(data.description || '', colX[0]+5, y+5, { width: colW[0]-10 })
-          .text(`${qty} 件`, colX[1], y+5, { width: colW[1], align: 'center' })
-          .text(unit.toLocaleString(), colX[2], y+5, { width: colW[2]-5, align: 'right' })
-          .text(unit.toLocaleString(), colX[3], y+5, { width: colW[3]-5, align: 'right' });
+          .text(`${quantity} 件`, colX[1], y+5, { width: colW[1], align: 'center' })
+          .text(unitPrice.toLocaleString(), colX[2], y+5, { width: colW[2]-5, align: 'right' })
+          .text(subtotal.toLocaleString(), colX[3], y+5, { width: colW[3]-5, align: 'right' });
       }
     }
 
     // 小計・消費税・合計（テーブル右側2列に揃える）
     const sumY = tableTop + 20 + 10 * 20;
-    const tax = Math.floor(amount / 11);
     const sumLabelX = colX[2];       // 390
     const sumLabelW = colW[2];       // 70
     const sumValX = colX[3];         // 460
@@ -190,9 +200,9 @@ async function generatePDF(data) {
     const sumRowW = sumLabelW + sumValW; // 165
 
     const rows = [
-      ['小計', amount.toLocaleString()],
-      ['消費税（10% 内税）', `(${tax.toLocaleString()})`],
-      ['合計', amount.toLocaleString()],
+      ['小計', subtotal.toLocaleString()],
+      ['消費税(10%内税)', `(${tax.toLocaleString()})`],
+      ['合計', subtotal.toLocaleString()],
     ];
     rows.forEach(([label, val], i) => {
       const y = sumY + i * 22;
