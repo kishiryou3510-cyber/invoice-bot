@@ -171,7 +171,7 @@ async function uploadToDrive(pdfBuffer, fileName) {
     requestBody: {
       name: fileName,
       mimeType: 'application/pdf',
-      parents: ['1CgGvx2-wr3DQp6Tbv-PRmJwUwtVPGBmB'],
+      parents: ['15Plmx-nvY4DJI8fPuE6gVhC-phx7blbg'],
     },
     media: {
       mimeType: 'application/pdf',
