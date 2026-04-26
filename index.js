@@ -149,17 +149,18 @@ async function generatePDF(data) {
       .text(data.issuer_email || '　', 310, 200);
 
     // 明細テーブル
+    // colX/colW: 右端が 40+515=555 に揃う
     const tableTop = 230;
     const colX = [40, 320, 390, 460];
-    const colW = [280, 70, 70, 75];
+    const colW = [280, 70, 70, 95];
 
     // ヘッダー
     doc.rect(40, tableTop, W, 20).fillAndStroke('#e0e0e0', '#999');
     doc.fillColor('black').fontSize(9)
-      .text('品番・品名', colX[0]+5, tableTop+5, { width: colW[0] })
+      .text('品番・品名', colX[0]+5, tableTop+5, { width: colW[0]-5 })
       .text('数量', colX[1], tableTop+5, { width: colW[1], align: 'center' })
       .text('単価', colX[2], tableTop+5, { width: colW[2], align: 'center' })
-      .text('金額', colX[3], tableTop+5, { width: colW[3], align: 'center' });
+      .text('金額', colX[3], tableTop+5, { width: colW[3]-5, align: 'center' });
 
     // 明細行（10行）
     for (let i = 0; i < 10; i++) {
@@ -172,16 +173,22 @@ async function generatePDF(data) {
         const qty = data.quantity || '1';
         const unit = parseInt(data.amount) || 0;
         doc.fontSize(9).fillColor('black')
-          .text(data.description || '', colX[0]+5, y+5, { width: colW[0]-5 })
+          .text(data.description || '', colX[0]+5, y+5, { width: colW[0]-10 })
           .text(`${qty} 件`, colX[1], y+5, { width: colW[1], align: 'center' })
-          .text(unit.toLocaleString(), colX[2], y+5, { width: colW[2], align: 'right' })
-          .text(unit.toLocaleString(), colX[3], y+5, { width: colW[3], align: 'right' });
+          .text(unit.toLocaleString(), colX[2], y+5, { width: colW[2]-5, align: 'right' })
+          .text(unit.toLocaleString(), colX[3], y+5, { width: colW[3]-5, align: 'right' });
       }
     }
 
-    // 小計・消費税・合計
+    // 小計・消費税・合計（テーブル右側2列に揃える）
     const sumY = tableTop + 20 + 10 * 20;
     const tax = Math.floor(amount / 11);
+    const sumLabelX = colX[2];       // 390
+    const sumLabelW = colW[2];       // 70
+    const sumValX = colX[3];         // 460
+    const sumValW = colW[3];         // 95
+    const sumRowW = sumLabelW + sumValW; // 165
+
     const rows = [
       ['小計', amount.toLocaleString()],
       ['消費税（10% 内税）', `(${tax.toLocaleString()})`],
@@ -189,10 +196,11 @@ async function generatePDF(data) {
     ];
     rows.forEach(([label, val], i) => {
       const y = sumY + i * 22;
-      doc.rect(320, y, 195, 22).stroke('#ccc');
+      doc.rect(sumLabelX, y, sumRowW, 22).stroke('#ccc');
+      doc.rect(sumValX, y, sumValW, 22).stroke('#ccc');
       doc.fontSize(9).fillColor('black')
-        .text(label, 325, y+6, { width: 110 })
-        .text(val, 435, y+6, { width: 75, align: 'right' });
+        .text(label, sumLabelX+5, y+6, { width: sumLabelW-5 })
+        .text(val, sumValX, y+6, { width: sumValW-5, align: 'right' });
     });
 
     // 振込先
