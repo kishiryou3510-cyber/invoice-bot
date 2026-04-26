@@ -39,7 +39,7 @@ async function handleEvent(event) {
   } else {
     await client.replyMessage({
       replyToken: event.replyToken,
-      messages: [{ type: 'text', text: `「請求書」または「領収書」と入力すると作成します！\n\n例：請求書 株式会社〇〇 50000円 コンサルティング料` }]
+      messages: [{ type: 'text', text: `以下の形式で入力してください：\n\n請求書\n宛先：株式会社〇〇\n件名：コンサルティング費\n数量：3\n単価：10000\n金額：（省略可・自動計算）` }]
     });
   }
 }
@@ -55,13 +55,20 @@ async function handleInvoice(event, userMessage) {
 
 メッセージ: ${userMessage}
 
-以下のJSON形式のみで返してください：
+以下のルールでJSONを生成してください：
+- 数量・単価・金額はすべて数字のみ（カンマなし）
+- 単価と数量が両方ある場合：金額 = 単価 × 数量
+- 金額のみ指定で数量が不明：数量=1、単価=金額
+- 単価のみで金額不明：数量=1
+- いずれも不明：0
+
+以下のJSON形式のみで返してください（説明文不要）：
 {
   "type": "請求書" または "領収書",
   "client_name": "宛先会社名",
   "description": "件名・内容",
-  "unit_price": 単価(数字のみ。明示されていない場合は合計金額を数量で割った値),
-  "quantity": 数量(数字のみ。明示されていない場合は1),
+  "unit_price": 単価(数字のみ),
+  "quantity": 数量(数字のみ),
   "date": "今日の日付(YYYY年MM月DD日形式)",
   "invoice_no": "請求番号(YYYYMMDD-001形式)",
   "issuer_name": "",
