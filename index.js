@@ -191,33 +191,7 @@ async function uploadToDrive(pdfBuffer, fileName) {
   return `https://drive.google.com/file/d/${fileId}/view`;
 }
 
-  const drive = google.drive({ version: 'v3', auth });
-
-  const response = await drive.files.create({
-  requestBody: {
-    name: fileName,
-    mimeType: 'application/pdf',
-  },
-  media: {
-    mimeType: 'application/pdf',
-    body: require('stream').Readable.from(pdfBuffer),
-  },
-  fields: 'id',
-});
-
-  const fileId = response.data.id;
-  await drive.permissions.create({
-    fileId,
-    requestBody: { role: 'reader', type: 'anyone' },
-  });
-  await drive.permissions.create({
-  fileId,
-  requestBody: { role: 'writer', type: 'user', emailAddress: 'kishiryou3510@gmail.com' },
-});
-
-  return `https://drive.google.com/file/d/${fileId}/view`;
-}
-const PORT = process.env.PORT || 3000;
+ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`サーバー起動中: ポート${PORT}`);
 });
