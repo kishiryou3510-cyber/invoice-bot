@@ -76,7 +76,7 @@ async function handleInvoice(event, userMessage) {
 
 
     // PDFを生成
-    const pdfBuffer = await generatePDF(html);
+    const pdfBuffer = await generatePDF(invoiceData);
 
     // Google Driveにアップロード
 const fileName = `請求書_${invoiceData.client_name}_${Date.now()}.pdf`;
